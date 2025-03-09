@@ -1,0 +1,21 @@
+# Core dependencies
+fastapi>=0.100.0
+uvicorn>=0.22.0
+python-multipart>=0.0.6
+pydantic>=2.0.0
+pydantic-settings>=2.0.0
+python-dotenv>=1.0.0
+requests>=2.31.0
+
+# Document processing
+langchain>=0.0.267
+langchain-community>=0.0.1
+sentence-transformers>=2.2.2
+chromadb>=0.4.13
+pandas>=2.0.0
+openpyxl>=3.1.2
+
+# Database
+snowflake-connector-python>=3.0.0
+sqlalchemy>=2.0.0
+cryptography>=42.0.0  # For handling Snowflake private key authentication
