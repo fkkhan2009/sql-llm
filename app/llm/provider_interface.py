@@ -2,7 +2,7 @@
 Abstract interface for LLM providers
 """
 from abc import ABC, abstractmethod
-from typing import Dict, List, Any, Optional, Union, Tuple
+from typing import Dict, List, Any, Optional, Union, Tuple, AsyncGenerator
 import os
 from enum import Enum
 
@@ -133,5 +133,29 @@ class LLMProviderInterface(ABC):
         
         Returns:
             List of model information dictionaries
+        """
+        pass
+
+    @abstractmethod
+    async def generate_stream(
+        self,
+        prompt: str,
+        system_prompt: Optional[str] = None,
+        temperature: float = 0.7,
+        max_tokens: Optional[int] = None,
+        stop_sequences: Optional[List[str]] = None,
+    ) -> AsyncGenerator[str, None]:
+        """
+        Generate text using the LLM with streaming support
+        
+        Args:
+            prompt: User prompt
+            system_prompt: Optional system prompt (for chat models)
+            temperature: Sampling temperature
+            max_tokens: Maximum tokens to generate
+            stop_sequences: Optional sequences to stop generation
+            
+        Yields:
+            Tokens/chunks of generated text as they become available
         """
         pass

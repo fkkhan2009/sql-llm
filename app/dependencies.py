@@ -66,23 +66,25 @@ class AppComponents:
         
         # Initialize Snowflake connector if credentials are available
         self.snowflake_connector = None
-        if (settings.SNOWFLAKE_ACCOUNT and settings.SNOWFLAKE_USER and 
-            (settings.SNOWFLAKE_PASSWORD or settings.SNOWFLAKE_PASSWORD_FILE or 
-             settings.SNOWFLAKE_PRIVATE_KEY_FILE)):
-            try:
-                self.snowflake_connector = SnowflakeConnector()
-                # Test connection
-                self.snowflake_connector.connect()
-                print("Successfully connected to Snowflake")
-                
-                # Initialize schema utils
-                self.schema_utils = SchemaUtils(self.snowflake_connector)
-            except Exception as e:
-                print(f"Failed to initialize Snowflake connector: {str(e)}")
-                self.snowflake_connector = None
+        self.schema_utils = None
+        if settings.CONNECT_TO_DB:
+            if (settings.SNOWFLAKE_ACCOUNT and settings.SNOWFLAKE_USER and 
+                (settings.SNOWFLAKE_PASSWORD or settings.SNOWFLAKE_PASSWORD_FILE or 
+                settings.SNOWFLAKE_PRIVATE_KEY_FILE)):
+                try:
+                    self.snowflake_connector = SnowflakeConnector()
+                    # Test connection
+                    self.snowflake_connector.connect()
+                    print("Successfully connected to Snowflake")
+                    
+                    # Initialize schema utils
+                    self.schema_utils = SchemaUtils(self.snowflake_connector)
+                except Exception as e:
+                    print(f"Failed to initialize Snowflake connector: {str(e)}")
+                    self.snowflake_connector = None
+                    self.schema_utils = None
+            else:
                 self.schema_utils = None
-        else:
-            self.schema_utils = None
         
         # Initialize context builder and orchestrator
         if self.llm_client:
@@ -99,7 +101,7 @@ class AppComponents:
             )
             
             # Initialize enhanced orchestrator
-            if self.snowflake_connector and self.schema_utils:
+            if self.snowflake_connector and self.schema_utils and settings.CONNECT_TO_DB:
                 self.enhanced_orchestrator = EnhancedLLMOrchestrator(
                     llm_client=self.llm_client,
                     snowflake_connector=self.snowflake_connector,
@@ -108,7 +110,13 @@ class AppComponents:
                     vector_store=self.vector_store
                 )
             else:
-                self.enhanced_orchestrator = None
+                self.enhanced_orchestrator = EnhancedLLMOrchestrator(
+                    llm_client=self.llm_client,
+                    #snowflake_connector=self.snowflake_connector,
+                    #schema_utils=self.schema_utils,
+                    context_builder=self.context_builder,
+                    vector_store=self.vector_store
+                )
         else:
             self.context_builder = None
             self.llm_orchestrator = None
@@ -154,8 +162,8 @@ def get_enhanced_components():
     components = get_components()
     
     # Check if enhanced orchestrator is available
-    if not components["enhanced_orchestrator"]:
-        raise ValueError("Enhanced orchestrator is not available. Please check Snowflake connection.")
+    #if not components["enhanced_orchestrator"]:
+        #raise ValueError("Enhanced orchestrator is not available. Please check Snowflake connection.")
         
     return components
 

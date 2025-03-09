@@ -8,7 +8,7 @@ import json
 from datetime import datetime
 from langchain.docstore.document import Document
 from app.document_processing.vector_store import VectorStore
-from app.llm.ollama_client import OllamaClient
+from app.llm.client import LLMClient
 
 class Message:
     """Represents a single message in a conversation"""
@@ -83,7 +83,7 @@ class ConversationMemory:
         workspace_id: str,
         max_context_messages: int = 10,
         summarization_threshold: int = 20,
-        llm_client: Optional[OllamaClient] = None
+        llm_client: Optional[LLMClient] = None
     ):
         """
         Initialize conversation memory

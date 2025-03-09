@@ -10,6 +10,7 @@ requests>=2.31.0
 # Document processing
 langchain>=0.0.267
 langchain-community>=0.0.1
+langchain-openai
 sentence-transformers>=2.2.2
 chromadb>=0.4.13
 pandas>=2.0.0

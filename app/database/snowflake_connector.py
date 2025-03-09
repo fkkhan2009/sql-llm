@@ -7,8 +7,8 @@ import time
 from typing import List, Dict, Any, Optional, Union, Tuple
 import pandas as pd
 import snowflake.connector
-from snowflake.connector.cursor import SnowflakeCursor
-from snowflake.connector.errors import ProgrammingError, DatabaseError
+# from snowflake.connector.cursor import SnowflakeCursor
+# from snowflake.connector.errors import ProgrammingError, DatabaseError
 
 from app.config import settings
 

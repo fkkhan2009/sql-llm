@@ -5,7 +5,7 @@ from typing import Dict, List, Any, Optional
 import uuid
 from app.conversation.memory import ConversationMemory
 from app.workspace.manager import WorkspaceManager
-from app.llm.ollama_client import OllamaClient
+from app.llm.client import LLMClient
 
 class ConversationManager:
     """Manages multiple conversations across workspaces"""
@@ -13,7 +13,7 @@ class ConversationManager:
     def __init__(
         self,
         workspace_manager: WorkspaceManager,
-        llm_client: OllamaClient
+        llm_client: LLMClient
     ):
         """
         Initialize conversation manager

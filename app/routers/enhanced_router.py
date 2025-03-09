@@ -2,7 +2,7 @@
 Enhanced router for database query interactions
 """
 from typing import Dict, Any, Optional, List
-from fastapi import APIRouter, Depends, HTTPException, Path, Query
+from fastapi import APIRouter, Depends, HTTPException, Path, Query, WebSocket, WebSocketDisconnect
 import logging
 
 from app.models.base import (
@@ -272,3 +272,36 @@ async def test_query_components(
             status_code=500,
             detail=f"Error testing query components: {str(e)}"
         )
+    
+@router.websocket("/ws")
+async def websocket_endpoint(
+    websocket: WebSocket,
+    components: Dict[str, Any] = Depends(get_enhanced_components)
+):
+    await websocket.accept()
+    try:
+        while True:
+            data = await websocket.receive_json()
+            data = EnhancedQueryRequest(**data)
+            enhanced_orchestrator = components["enhanced_orchestrator"]
+
+            #Process the user query with streaming
+            async for step_response in enhanced_orchestrator.process_database_query_stream(
+                question=data.question,
+                workspace_id=data.workspace_id,
+                include_docs=data.include_docs,
+                save_as_view=data.save_as_view,
+                view_name=data.view_name,
+                view_description=data.view_description,
+                temperature=data.temperature,
+                use_progressive_building=data.use_progressive_building
+            ):
+                await websocket.send_json(step_response)
+
+    except WebSocketDisconnect:
+        logger.info("WebSocket disconnected")
+    except Exception as e:
+        logger.error(f"Error in websocket: {str(e)}", exc_info=True)
+        await websocket.send_json({"error": str(e)})
+                
+                

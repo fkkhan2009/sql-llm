@@ -5,7 +5,7 @@ import os
 import json
 import requests
 import tiktoken
-from typing import Dict, List, Any, Optional, Union, Tuple
+from typing import Dict, List, Any, Optional, Union, Tuple, AsyncGenerator
 import logging
 
 from app.llm.provider_interface import LLMProviderInterface, ModelType
@@ -134,9 +134,7 @@ class OllamaProvider(LLMProviderInterface):
     
     @property
     def embedding_model_name(self) -> str:
-        return self.embedding_deployment or "Unknown" as e:
-            logger.error(f"Error calling Ollama API: {str(e)}")
-            return f"Error calling Ollama API: {str(e)}"
+        return self.embedding_deployment or "Unknown"
     
     def get_embeddings(self, texts: List[str]) -> List[List[float]]:
         """Get embeddings using Ollama"""
@@ -223,6 +221,56 @@ class OllamaProvider(LLMProviderInterface):
     @property
     def embedding_model_name(self) -> str:
         return self._embedding_model_name
+
+    async def generate_stream(
+        self,
+        prompt: str,
+        system_prompt: Optional[str] = None,
+        temperature: float = 0.7,
+        max_tokens: Optional[int] = None,
+        stop_sequences: Optional[List[str]] = None,
+    ) -> AsyncGenerator[str, None]:
+        """Generate text using Ollama with streaming"""
+        import aiohttp
+        
+        url = f"{self.base_url}/api/generate"
+        
+        payload = {
+            "model": self._model_name,
+            "prompt": prompt,
+            "stream": True  # Enable streaming
+        }
+        
+        # Add optional parameters
+        if system_prompt:
+            payload["system"] = system_prompt
+        if temperature is not None:
+            payload["temperature"] = temperature
+        if max_tokens is not None:
+            payload["num_predict"] = max_tokens
+        if stop_sequences:
+            payload["stop"] = stop_sequences
+            
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.post(url, json=payload) as response:
+                    response.raise_for_status()
+                    
+                    # Ollama streams JSON objects, one per line
+                    async for line in response.content:
+                        if not line:
+                            continue
+                            
+                        try:
+                            data = json.loads(line)
+                            if "response" in data:
+                                yield data["response"]
+                        except json.JSONDecodeError:
+                            continue
+                            
+        except Exception as e:
+            logger.error(f"Error in Ollama streaming: {str(e)}")
+            raise
 
 
 class OpenAIProvider(LLMProviderInterface):
@@ -467,6 +515,47 @@ class OpenAIProvider(LLMProviderInterface):
     def embedding_model_name(self) -> str:
         return self._embedding_model_name
 
+    async def generate_stream(
+        self,
+        prompt: str,
+        system_prompt: Optional[str] = None,
+        temperature: float = 0.7,
+        max_tokens: Optional[int] = None,
+        stop_sequences: Optional[List[str]] = None,
+    ) -> AsyncGenerator[str, None]:
+        """Stream text generation from OpenAI"""
+        from openai import AsyncOpenAI
+        
+        # Initialize async client
+        client = AsyncOpenAI(
+            api_key=self.api_key,
+            organization=self.org_id,
+            base_url=self.base_url
+        )
+        
+        try:
+            messages = []
+            if system_prompt:
+                messages.append({"role": "system", "content": system_prompt})
+            messages.append({"role": "user", "content": prompt})
+            
+            stream = await client.chat.completions.create(
+                model=self._model_name,
+                messages=messages,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                stop=stop_sequences,
+                stream=True
+            )
+            
+            async for chunk in stream:
+                if chunk.choices[0].delta.content:
+                    yield chunk.choices[0].delta.content
+                    
+        except Exception as e:
+            logger.error(f"Error in OpenAI streaming: {str(e)}")
+            raise
+
 
 class AnthropicProvider(LLMProviderInterface):
     """Provider for Anthropic LLMs (Claude)"""
@@ -631,6 +720,45 @@ class AnthropicProvider(LLMProviderInterface):
     def embedding_model_name(self) -> str:
         return self._embedding_model_name
 
+    async def generate_stream(
+        self,
+        prompt: str,
+        system_prompt: Optional[str] = None,
+        temperature: float = 0.7,
+        max_tokens: Optional[int] = None,
+        stop_sequences: Optional[List[str]] = None,
+    ) -> AsyncGenerator[str, None]:
+        """Stream text generation from Anthropic"""
+        import anthropic
+        
+        # Initialize async client
+        client = anthropic.AsyncAnthropic(
+            api_key=self.api_key
+        )
+        
+        try:
+            # Combine system prompt and user prompt if both provided
+            if system_prompt:
+                full_prompt = f"{system_prompt}\n\n{prompt}"
+            else:
+                full_prompt = prompt
+            
+            stream = await client.messages.create(
+                model=self._model_name,
+                max_tokens=max_tokens or 4096,
+                temperature=temperature,
+                messages=[{"role": "user", "content": full_prompt}],
+                stream=True
+            )
+            
+            async for chunk in stream:
+                if chunk.delta.text:
+                    yield chunk.delta.text
+                    
+        except Exception as e:
+            logger.error(f"Error in Anthropic streaming: {str(e)}")
+            raise
+
 
 class AzureOpenAIProvider(LLMProviderInterface):
     """Provider for Azure OpenAI LLMs"""
@@ -765,4 +893,127 @@ class AzureOpenAIProvider(LLMProviderInterface):
                     embeddings.append([0.0] * 1536)  # Default size for OpenAI embeddings
             
             return embeddings
-        except requests.exceptions.RequestException
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Error getting embeddings from Azure OpenAI: {str(e)}")
+            # Return zero vectors as fallback
+            return [[0.0] * 1536 for _ in texts]  # Default size for OpenAI embeddings
+    
+    def get_token_count(self, text: str) -> int:
+        """Count tokens using tiktoken"""
+        try:
+            return len(self.tokenizer.encode(text))
+        except Exception as e:
+            logger.error(f"Error counting tokens: {str(e)}")
+            # Fallback to character-based estimate
+            return len(text) // 4
+    
+    def get_context_window(self) -> int:
+        """Get the context window size of the model"""
+        # Context window sizes for different models
+        model_to_context_length = {
+            "gpt-4o": 128000,
+            "gpt-4o-mini": 128000,
+            "gpt-4": 8192,
+            "gpt-4-turbo": 128000,
+            "gpt-4-32k": 32768,
+            "gpt-3.5-turbo": 4096,
+            "gpt-3.5-turbo-16k": 16384
+        }
+        
+        # Check for exact matches
+        if self.deployment_name in model_to_context_length:
+            return model_to_context_length[self.deployment_name]
+        
+        # Check for model name prefixes
+        for model_prefix, context_length in model_to_context_length.items():
+            if self.deployment_name.startswith(model_prefix):
+                return context_length
+                
+        # Default context window size
+        return 4096
+    
+    def list_models(self) -> List[Dict[str, Any]]:
+        """List available models from Azure OpenAI"""
+        url = f"{self.endpoint}/openai/deployments"
+        
+        headers = {
+            "api-key": self.api_key,
+            "Content-Type": "application/json"
+        }
+        
+        try:
+            response = requests.get(url, headers=headers)
+            response.raise_for_status()
+            result = response.json()
+            
+            return result.get("data", [])
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Error listing models from Azure OpenAI: {str(e)}")
+            return []
+    
+    @property
+    def provider_name(self) -> str:
+        return "Azure OpenAI"
+    
+    @property
+    def model_name(self) -> str:
+        return self.deployment_name
+    
+    @property
+    def model_type(self) -> ModelType:
+        return ModelType.CHAT  # Azure OpenAI typically uses chat models
+    
+    @property
+    def embedding_model_name(self) -> str:
+        return self.embedding_deployment or "Unknown"
+
+    async def generate_stream(
+        self,
+        prompt: str,
+        system_prompt: Optional[str] = None,
+        temperature: float = 0.7,
+        max_tokens: Optional[int] = None,
+        stop_sequences: Optional[List[str]] = None,
+    ) -> AsyncGenerator[str, None]:
+        """Stream text generation from Azure OpenAI"""
+        from openai import AsyncAzureOpenAI
+        from openai import APIError, APIConnectionError, RateLimitError
+        
+        # Initialize async client
+        client = AsyncAzureOpenAI(
+            api_key=self.api_key,
+            api_version=self.api_version,
+            azure_endpoint=self.endpoint
+        )
+        
+        try:
+            messages = []
+            if system_prompt:
+                messages.append({"role": "system", "content": system_prompt})
+            messages.append({"role": "user", "content": prompt})
+            
+            stream = await client.chat.completions.create(
+                model=self.deployment_name,
+                messages=messages,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                stop=stop_sequences,
+                stream=True
+            )
+            
+            async for chunk in stream:
+                if chunk.choices[0].delta.content:
+                    yield chunk.choices[0].delta.content
+                    
+        except RateLimitError as e:
+            logger.error(f"Azure OpenAI rate limit exceeded: {str(e)}")
+            raise
+        except APIConnectionError as e:
+            logger.error(f"Connection error to Azure OpenAI: {str(e)}")
+            raise
+        except APIError as e:
+            logger.error(f"Azure OpenAI API error: {str(e)}")
+            raise
+        except Exception as e:
+            logger.error(f"Error in Azure OpenAI streaming: {str(e)}")
+            raise

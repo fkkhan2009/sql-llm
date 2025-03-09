@@ -4,7 +4,7 @@ Orchestrator for LLM interactions
 from typing import Dict, Any, Optional, Tuple
 import pandas as pd
 
-from app.llm.ollama_client import OllamaClient
+from app.llm.client import LLMClient
 from app.llm.context_builder import ContextBuilder
 from app.llm.prompt_templates import PromptTemplates
 from app.document_processing.vector_store import VectorStore
@@ -15,7 +15,7 @@ class LLMOrchestrator:
     
     def __init__(
         self,
-        ollama_client: OllamaClient,
+        llm_client: LLMClient,
         context_builder: Optional[ContextBuilder] = None,
         vector_store: Optional[VectorStore] = None,
         snowflake_connector: Optional[SnowflakeConnector] = None
@@ -24,12 +24,12 @@ class LLMOrchestrator:
         Initialize LLM orchestrator
         
         Args:
-            ollama_client: Ollama client for LLM interactions
+            llm_client: Ollama client for LLM interactions
             context_builder: Context builder for assembling context
             vector_store: Vector store for document retrieval
             snowflake_connector: Snowflake connector for database interactions
         """
-        self.ollama_client = ollama_client
+        self.llm_client = llm_client
         
         # Create context builder if not provided
         if context_builder:
@@ -83,7 +83,7 @@ class LLMOrchestrator:
         system_prompt = PromptTemplates.system_prompt()
         
         # Generate response from LLM
-        response_text = self.ollama_client.generate(
+        response_text = self.llm_client.generate(
             prompt=prompt,
             system_prompt=system_prompt,
             temperature=temperature
@@ -188,7 +188,7 @@ class LLMOrchestrator:
         system_prompt = PromptTemplates.system_prompt()
         
         # Generate SQL from LLM
-        response_text = self.ollama_client.generate(
+        response_text = self.llm_client.generate(
             prompt=prompt,
             system_prompt=system_prompt,
             temperature=temperature

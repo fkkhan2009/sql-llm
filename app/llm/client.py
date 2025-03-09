@@ -1,7 +1,7 @@
 """
 Updated LLM client with provider abstraction
 """
-from typing import Dict, List, Any, Optional, Union
+from typing import Dict, List, Any, Optional, Union, AsyncGenerator
 import logging
 import time
 
@@ -188,3 +188,34 @@ class LLMClient:
             "embedding_model": self.provider.embedding_model_name,
             "context_window": self.get_context_window()
         }
+
+    async def generate_stream(
+        self, 
+        prompt: str, 
+        temperature: float = 0.7,
+        max_tokens: Optional[int] = None,
+        stop_sequences: Optional[List[str]] = None
+    ) -> AsyncGenerator[str, None]:
+        """
+        Generate a streaming response from the LLM.
+        
+        Args:
+            prompt: The prompt to send to the LLM
+            temperature: Controls randomness. Lower values make responses more deterministic
+            max_tokens: Maximum number of tokens to generate
+            stop_sequences: List of sequences that will stop generation when encountered
+            
+        Yields:
+            Tokens from the LLM response as they are generated
+        """
+        # Get the current provider based on the configuration
+        
+        
+        # Use the provider's streaming method
+        async for token in self.provider.generate_stream(
+            prompt=prompt,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            stop_sequences=stop_sequences
+        ):
+            yield token
