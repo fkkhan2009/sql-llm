@@ -297,6 +297,12 @@ async def websocket_endpoint(
                 use_progressive_building=data.use_progressive_building
             ):
                 await websocket.send_json(step_response)
+            
+            # Send completion message after all steps are done
+            await websocket.send_json({
+                "type": "query_complete",
+                "message": "All steps completed"
+            })
 
     except WebSocketDisconnect:
         logger.info("WebSocket disconnected")

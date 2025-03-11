@@ -3,26 +3,24 @@
 @tailwind utilities;
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --background: #1e1e1e;
+  --foreground: #f0f0f0;
+  --chat-bg: #2a2a2a;
+  --user-message-bg: #3a3a3a;
+  --assistant-message-bg: #2a2a2a;
+  --input-bg: #3a3a3a;
+  --accent-color: #8e8ea0;
 }
 
 body {
-  background-color: #1a1a1a;
-  color: #e0e0e0;
+  background-color: var(--background);
+  color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
 
 @layer components {
   .prose {
-    @apply text-gray-700 leading-relaxed;
+    @apply text-gray-200 leading-relaxed;
   }
   
   .prose p {
@@ -30,14 +28,18 @@ body {
   }
   
   .prose code {
-    @apply bg-gray-100 px-1 py-0.5 rounded;
+    @apply bg-gray-800 text-gray-200 px-1 py-0.5 rounded;
+  }
+
+  .prose pre {
+    @apply bg-gray-800 text-gray-200 p-3 rounded overflow-x-auto my-4;
   }
 }
 
 input,
 textarea {
-  background-color: #333;
-  color: #fff;
+  background-color: var(--input-bg);
+  color: var(--foreground);
   border: 1px solid #555;
   padding: 0.5rem;
   border-radius: 0.25rem;
@@ -45,6 +47,29 @@ textarea {
 
 input:focus,
 textarea:focus {
-  border-color: #3b82f6;
+  border-color: var(--accent-color);
   outline: none;
+  box-shadow: 0 0 0 2px rgba(142, 142, 160, 0.3);
+}
+
+button {
+  transition: all 0.2s ease;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #2d2d2d;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #555;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #777;
 }
