@@ -82,31 +82,42 @@ export default function ChatInterface() {
     // Handle normal stream messages
     if (response.type !== StreamResponseType.QUERY_COMPLETE) {
       setStreamingContent(prev => [...prev, response]);
+      
+      // Handle completion through EXPLANATION step
+      if (response.type === StreamResponseType.STEP_END && 
+          response.step === ProcessStep.EXPLANATION) {
+        finishProcessing();
+      }
     }
     
-    // Handle completion
-    if (
-      (response.type === StreamResponseType.STEP_END && 
-       response.step === ProcessStep.EXPLANATION) ||
-      response.type === StreamResponseType.QUERY_COMPLETE
-    ) {
+    // Only handle QUERY_COMPLETE if we haven't already finished processing
+    if (response.type === StreamResponseType.QUERY_COMPLETE && isProcessing) {
       finishProcessing();
     }
-  }, []);
+  }, [isProcessing]);
 
   // Function to handle finishing the processing state
   const finishProcessing = useCallback(() => {
+    if (!isProcessing) return; // Prevent duplicate processing
+    
     setIsProcessing(false);
     
     // Finalize the assistant message
     setCurrentAssistantMessage(current => {
       if (current) {
-        setMessages(prev => [...prev, current]);
+        const messageId = current.id; // Store the ID
+        setMessages(prev => {
+          // Check if message with this ID already exists
+          if (prev.some(msg => msg.id === messageId)) {
+            return prev;
+          }
+          return [...prev, current];
+        });
         return null;
       }
       return current;
     });
-  }, []);
+  }, [isProcessing]);
 
   // Handle WebSocket close
   const handleClose = useCallback(() => {
