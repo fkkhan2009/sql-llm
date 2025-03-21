@@ -7,6 +7,8 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse
 import os
 
+from contextlib import asynccontextmanager
+
 from app.config import settings
 from app.dependencies import get_components  # Make sure components are initialized
 from app.routers import base_router, workspace_router, conversation_router

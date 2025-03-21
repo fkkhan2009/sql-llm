@@ -29,7 +29,7 @@ class EnhancedQueryRequest(BaseModel):
     view_description: Optional[str] = None
     temperature: float = 0.3
     use_progressive_building: bool = Field(default=True, description="Whether to use progressive query building")
-
+    ping: Optional[str] = None
 class EnhancedQueryResponse(BaseModel):
     """Response model for enhanced database queries"""
     question: str
@@ -299,10 +299,10 @@ async def websocket_endpoint(
                 await websocket.send_json(step_response)
             
             # Send completion message after all steps are done
-            await websocket.send_json({
-                "type": "query_complete",
-                "message": "All steps completed"
-            })
+            # await websocket.send_json({
+            #     "type": "query_complete",
+            #     "message": "All steps completed"
+            # })
 
     except WebSocketDisconnect:
         logger.info("WebSocket disconnected")

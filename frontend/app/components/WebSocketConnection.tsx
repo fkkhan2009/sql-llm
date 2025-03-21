@@ -20,6 +20,7 @@ export const WebSocketProvider = ({ children }: { children: React.ReactNode }) =
   const [error, setError] = useState<string | null>(null);
   const isReconnecting = useRef(false);
   const wsInstance = useRef<WebSocket | null>(null);
+  const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const createWebSocketConnection = useCallback(() => {
     // Prevent multiple reconnection attempts
@@ -30,6 +31,12 @@ export const WebSocketProvider = ({ children }: { children: React.ReactNode }) =
 
     isReconnecting.current = true;
 
+    // Clear any existing reconnect timeout
+    if (reconnectTimeoutRef.current) {
+      clearTimeout(reconnectTimeoutRef.current);
+      reconnectTimeoutRef.current = null;
+    }
+
     // Close existing socket if it exists
     if (wsInstance.current && wsInstance.current.readyState !== WebSocket.CLOSED) {
       console.log('Closing existing WebSocket connection');
@@ -37,7 +44,10 @@ export const WebSocketProvider = ({ children }: { children: React.ReactNode }) =
     }
 
     console.log('Creating new WebSocket connection');
-    const ws = new WebSocket(process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:8000/api/enhanced/ws');
+    const wsUrl = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:8000/api/enhanced/ws';
+    console.log('WebSocket URL:', wsUrl);
+    
+    const ws = new WebSocket(wsUrl);
 
     ws.onopen = () => {
       console.log('WebSocket connection established');
@@ -52,6 +62,12 @@ export const WebSocketProvider = ({ children }: { children: React.ReactNode }) =
       
       if (!event.wasClean) {
         setError('WebSocket connection closed unexpectedly');
+        
+        // Attempt to reconnect after a delay
+        reconnectTimeoutRef.current = setTimeout(() => {
+          console.log('Attempting to reconnect after connection closed...');
+          createWebSocketConnection();
+        }, 3000);
       } else {
         setError(null);
       }
@@ -65,22 +81,67 @@ export const WebSocketProvider = ({ children }: { children: React.ReactNode }) =
       isReconnecting.current = false;
     };
 
+    // Add a ping interval to keep the connection alive
+    const pingInterval = setInterval(() => {
+      if (ws.readyState === WebSocket.OPEN) {
+        console.log('Sending ping to keep connection alive');
+        ws.send(JSON.stringify({ type: 'ping' }));
+      }
+    }, 30000); // Send ping every 30 seconds
+
     wsInstance.current = ws;
     setSocket(ws);
     
-    return ws;
+    // Return cleanup function
+    return () => {
+      clearInterval(pingInterval);
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current);
+      }
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.close();
+      }
+    };
   }, []); // Empty dependency array to ensure this function is created only once
 
   // Initialize WebSocket connection only once when the component mounts
   useEffect(() => {
     console.log('Initializing WebSocket connection');
-    const ws = createWebSocketConnection();
+    const cleanup = createWebSocketConnection();
+    
+    // Add event listener for page visibility changes
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        console.log('Page became visible, checking WebSocket connection');
+        if (!wsInstance.current || wsInstance.current.readyState !== WebSocket.OPEN) {
+          console.log('WebSocket not connected, reconnecting...');
+          createWebSocketConnection();
+        }
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    
+    // Add event listener for online/offline status
+    const handleOnline = () => {
+      console.log('Browser is online, checking WebSocket connection');
+      if (!wsInstance.current || wsInstance.current.readyState !== WebSocket.OPEN) {
+        console.log('WebSocket not connected, reconnecting...');
+        createWebSocketConnection();
+      }
+    };
+
+    window.addEventListener('online', handleOnline);
     
     return () => {
       console.log('Cleaning up WebSocket connection');
-      if (ws) {
-        ws.close();
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('online', handleOnline);
+      
+      if (cleanup) {
+        cleanup();
       }
+      
       wsInstance.current = null;
     };
   }, [createWebSocketConnection]);
